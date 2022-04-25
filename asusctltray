@@ -37,18 +37,11 @@ from gi.repository import Gtk, GObject
 ICON_BASE_PATH: str = "/usr/share/pixmaps"
 # From https://gitlab.com/asus-linux/asusctl-gex/-/blob/main/src/modules/gfx_mode_dbus.ts
 GFX_MODES: Dict[int, str] = {
-    0: "hybrid",
-    1: "nvidia",
-    2: "integrated",
-    3: "compute",
-    4: "vfio",
-    5: "egpu",
+    0: "Hybrid",
+    1: "Integrated",
 }
 GFX_USER_ACTION: Dict[int, str] = {
-    0: "logout",
-    1: "reboot",
-    2: "integrated",
-    3: "none",
+    0: "none",
 }
 GFX_POWER: Dict[int, str] = {
     0: "active",
@@ -88,10 +81,10 @@ class TrayIcon:
 
     def __init__(self) -> None:
         bus = dbus.SystemBus()
-        self.gfx_proxy = dbus.Interface(
-            bus.get_object("org.supergfxctl.Daemon", "/org/supergfxctl/Gfx"),
-            dbus_interface="org.supergfxctl.Daemon",
-        )
+        #self.gfx_proxy = dbus.Interface(
+        #    bus.get_object("org.supergfxctl.Daemon", "/org/supergfxctl/Gfx"),
+        #    dbus_interface="org.supergfxctl.Daemon",
+        #)
         self.power_profile_props_proxy = dbus.Interface(
             bus.get_object("net.hadess.PowerProfiles", "/net/hadess/PowerProfiles"),
             dbus_interface=dbus.PROPERTIES_IFACE,
@@ -128,7 +121,7 @@ class TrayIcon:
         self.menu.append(Gtk.SeparatorMenuItem())
 
         qicon = Gtk.MenuItem()
-        qicon.set_label("Quit asusctltray")
+        qicon.set_label("Quit asusctltray-alt")
         qicon.connect("activate", Gtk.main_quit)
         self.menu.append(qicon)
 
@@ -179,13 +172,20 @@ class TrayIcon:
         titem.set_sensitive(False)
         self.menu.append(titem)
 
-        power = GFX_POWER[self.gfx_proxy.Power()]
+        state = self.get_current_graphics()
+        #print(state)
+        power="Unknown"
+        if state==0:
+            power="Present"
+        if state==1:
+            power="Removed"
+        #power = GFX_POWER[self.gfx_proxy.Power()]
         pitem = Gtk.MenuItem.new_with_label(f"dGPU: {power}")
         self.menu.append(pitem)
         self.menu.append(Gtk.SeparatorMenuItem())
 
         current_graphics = self.get_current_graphics()
-        supported_modes = [int(m) for m in self.gfx_proxy.Supported()]
+        supported_modes = [0,1]
 
         group = []
         for mode_ind, mode in GFX_MODES.items():
@@ -200,18 +200,24 @@ class TrayIcon:
 
     def get_current_graphics(self) -> int:
         """Returns the currently active graphics mode"""
-        mode = self.gfx_proxy.Mode()
-        if mode not in GFX_MODES.keys():
-            dialog = self._build_dialog(
-                "Unrecognized graphics mode with index "
-                f"<span font_family='monospace'>{int(mode)}</span>.\n"
-                "\nPlease open a new issue on Github with this bug report!"
-            )
-            dialog.add_buttons("Open Github issues page", Gtk.ResponseType.OK)
-            resp = dialog.run()
-            if resp == Gtk.ResponseType.OK:
-                webbrowser.open_new_tab("https://github.com/Baldomo/asusctltray/issues")
-            dialog.destroy()
+
+        status = os.popen('asusgetmode').read()
+        mode = 1
+
+        if 'Nvidia' in status:
+            mode = 0
+
+        #if mode not in GFX_MODES.keys():
+        #    dialog = self._build_dialog(
+        #        "Unrecognized graphics mode with index "
+        #        f"<span font_family='monospace'>{int(mode)}</span>.\n"
+        #        "\nPlease open a new issue on Github with this bug report!"
+        #    )
+        #    dialog.add_buttons("Open Github issues page", Gtk.ResponseType.OK)
+        #    resp = dialog.run()
+        #    if resp == Gtk.ResponseType.OK:
+        #        webbrowser.open_new_tab("https://github.com/Baldomo/asusctltray/issues")
+        #    dialog.destroy()
         return mode
 
     @on_widget_active_strict
@@ -220,6 +226,7 @@ class TrayIcon:
 
         # Return if the currently active profile is already selected in the menu
         if GFX_MODES[self.get_current_graphics()] == widget.get_label():
+            print("i broke here")
             return
 
         # Kinda horrible but it's fine because GFX_MODES is hardcoded
@@ -227,36 +234,48 @@ class TrayIcon:
         mode_ind = next(
             (k for (k, v) in GFX_MODES.items() if v == widget.get_label()), None
         )
-        if not mode_ind:
-            # This shouldn't happen
-            return
+        print(widget.get_label())
+        print(mode_ind)
+        #if not mode_ind:
+        #    # This shouldn't happen
+        #    print("but it did")
+        #    return
 
-        action_ind = self.gfx_proxy.SetMode(mode_ind)
-        action = GFX_USER_ACTION[action_ind]
-        if action == "integrated":
-            dialog = self._build_dialog(
-                "You must switch to Integrated mode before switching to Compute or VFIO."
+        #action_ind = self.gfx_proxy.SetMode(mode_ind)
+        dialog = self._build_dialog(
+                "Please save all your work, session will restart on entering password!"
             )
-            dialog.run()
-            dialog.destroy()
-        elif action != "none":
-            dialog = self._build_dialog(
-                f"Graphics changed to {widget.get_label()}. "
-                f"A {action} is required (save your files!)."
-            )
-            dialog.add_buttons("Later", Gtk.ResponseType.CLOSE)
-            if action == "reboot":
-                dialog.add_buttons("Reboot the system", Gtk.ResponseType.OK)
-                resp = dialog.run()
-                if resp == Gtk.ResponseType.OK:
-                    self._reboot()
-                dialog.destroy()
-            elif action == "logout":
-                dialog.add_buttons("Log me out", Gtk.ResponseType.OK)
-                resp = dialog.run()
-                if resp == Gtk.ResponseType.OK:
-                    self._logout()
-                dialog.destroy()
+        dialog.add_buttons("Okay", Gtk.ResponseType.CLOSE)
+        dialog.run()
+        dialog.destroy()
+
+        status=os.popen('systemctl start asusgpuswitch').read()
+        
+        #action = "none"
+        #if action == "integrated":
+        #    dialog = self._build_dialog(
+        #        "You must switch to Integrated mode before switching to Compute or VFIO."
+        #    )
+        #    dialog.run()
+        #    dialog.destroy()
+        #elif action != "none":
+        #    dialog = self._build_dialog(
+        #        f"Graphics changed to {widget.get_label()}. "
+        #        f"A {action} is required (save your files!)."
+        #    )
+        #    dialog.add_buttons("Later", Gtk.ResponseType.CLOSE)
+        #    if action == "reboot":
+        #        dialog.add_buttons("Reboot the system", Gtk.ResponseType.OK)
+        #        resp = dialog.run()
+        #        if resp == Gtk.ResponseType.OK:
+        #            self._reboot()
+        #        dialog.destroy()
+        #    elif action == "logout":
+        #        dialog.add_buttons("Log me out", Gtk.ResponseType.OK)
+        #        resp = dialog.run()
+        #        if resp == Gtk.ResponseType.OK:
+        #            self._logout()
+        #        dialog.destroy()
 
     def _reboot(self) -> None:
         """Requests system reboot to logind via dbus"""
