@@ -6,8 +6,6 @@ This is a very simple hack to enable the alternate gfx switching mode for the As
 
 This is a simple tray widget based on `appindicator` which lets the user change their ROG laptop power profiles and graphics mode on the fly. Easy turbo boost toggling is also included (it was temporarily removed from `asusctl`).
 
-All functionality is provided through `dbus` method calls.
-
 ## Table of contents
 - [asusctltray](#asusctltray)
   - [Table of contents](#table-of-contents)
