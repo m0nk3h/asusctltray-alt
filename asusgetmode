@@ -1,0 +1,13 @@
+#!/bin/bash
+
+GPUFILE=/etc/asus_nvidia
+
+if [ -f $GPUFILE ]; then
+  echo "Hybrid mode."
+else
+  echo "Integrated mode."
+fi
+
+if [ -d "/sys/bus/pci/devices/0000:01:00.0/" ]; then
+  echo "Nvidia exists"
+fi
